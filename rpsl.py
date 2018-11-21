@@ -18,9 +18,9 @@ If a <peering-set-name> is used, the peerings are listed in the
 corresponding peering-set object.  Note that the peering-set
 objects can be recursive.
 ---------------------------------------------------------------------
-<import-factor> ::= from <peering-1> [action <action-1>]
+<import-factor> ::= from|to <peering-1> [action <action-1>]
                     . . .
-                    from <peering-N> [action <action-N>]
+                    from|to <peering-N> [action <action-N>]
                     accept <filter>;
 
 <import-term> ::=  <import-factor> |
@@ -39,3 +39,14 @@ import|export: [protocol <protocol1>] [into <protocol2>]
 ---------------------------------------------------------------------
 default: to <peering> [action <action>] [networks <filter>]
 """
+
+
+from ripeapi import get_asset_members
+
+
+def uncover_asset(asset):
+    pass
+
+
+def get_peerases(peering_rules):
+    pass
