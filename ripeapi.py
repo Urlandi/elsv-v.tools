@@ -103,7 +103,8 @@ def get_asset_members(asset):
                 record_value = record["value"]
 
                 if record_type == "members":
-                    members.add(record_value)
+                    member_list = set(record_value.split(','))
+                    members.update(member_list)
 
     except KeyError or TypeError:
         members = None

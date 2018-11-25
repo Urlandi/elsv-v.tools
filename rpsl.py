@@ -40,12 +40,69 @@ import|export: [protocol <protocol1>] [into <protocol2>]
 default: to <peering> [action <action>] [networks <filter>]
 """
 
+import re
 
 from ripeapi import get_asset_members
 
 
-def uncover_asset(asset):
-    pass
+RE_ASN = "AS[0-9]{1,6}"
+RE_ASSET_NAME = "AS-[A-Z0-9-_]{0,}[A-Z0-9]"
+RE_ASSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):){0,}" + RE_ASSET_NAME
+RE_ASSET_ANY = "AS-ANY"
+
+DEF_ASN_COUNT_MAX = 100
+DEF_ASSET_DEEP_MAX = 5
+
+
+def uncover_asset(asset_name, asn_count_max=DEF_ASN_COUNT_MAX, asset_deep_max=DEF_ASSET_DEEP_MAX, asset_deep=0):
+
+    uncovered = set()
+
+    asn_list = set()
+
+    asset = get_asset_members(asset_name)
+
+    if asset is None:
+        return None
+
+    for asn in asset:
+
+        if asn in uncovered:
+            continue
+
+        uncovered.add(asn)
+
+        if re.match(RE_ASSET_ANY, asn, re.IGNORECASE):
+            continue
+
+        if re.match(RE_ASSET, asn, re.IGNORECASE):
+            if asset_deep_max < asset_deep:
+                asn_list.clear()
+                asn_list.add(RE_ASSET_ANY)
+                break
+
+            asn_inside = uncover_asset(asn)
+
+            if asn_inside is None:
+                return None
+            elif RE_ASSET_ANY in asn_inside:
+                return asn_inside
+
+            asn_list.update(asn_inside)
+
+        elif re.match(RE_ASN, asn, re.IGNORECASE):
+            asn_list.add(asn)
+        else:
+            return None
+
+        asn_count = len(asn_list)
+
+        if asn_count_max < asn_count:
+            asn_list.clear()
+            asn_list.add(RE_ASSET_ANY)
+            break
+
+    return asn_list
 
 
 def get_peerases(peering_rules):
