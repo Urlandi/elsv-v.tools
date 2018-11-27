@@ -77,11 +77,11 @@ def uncover_asset(asset_name, asn_count_max=DEF_ASN_COUNT_MAX, asset_deep_max=DE
 
         if re.match(RE_ASSET, asn, re.IGNORECASE):
             if asset_deep_max < asset_deep:
-                asn_list.clear()
-                asn_list.add(RE_ASSET_ANY)
-                break
+                continue
 
-            asn_inside = uncover_asset(asn)
+            asn_inside = uncover_asset(asn, 
+                                       asn_count_max, asset_deep_max, 
+                                       asset_deep+1)
 
             if asn_inside is None:
                 return None
