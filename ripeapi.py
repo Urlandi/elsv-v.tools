@@ -110,3 +110,8 @@ def get_asset_members(asset):
         members = None
 
     return members
+
+
+def get_peering_expr(prngset):
+    peering = set()
+    pass
