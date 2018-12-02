@@ -42,7 +42,7 @@ default: to <peering> [action <action>] [networks <filter>]
 
 import re
 
-from ripeapi import get_asset_members, get_whois_top
+from ripeapi import get_asset_members, get_peeringset_expr
 
 
 RE_ASN = "AS[0-9]{1,6}"
@@ -50,15 +50,19 @@ RE_ASSET_NAME = "AS-[A-Z0-9-_]*[A-Z0-9]"
 RE_ASSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):){0,}" + RE_ASSET_NAME
 RE_ASSET_ANY = "AS-ANY"
 
-RE_ASNEXPR = "((" + RE_ASN + "|" + RE_ASSET + ")(\s+(OR|AND|EXCEPT)\s+(" + RE_ASN + "|" + RE_ASSET + "))*)"
+RE_PEERINGSET_NAME = "PRNG-[A-Z0-9-_]*[A-Z0-9]"
+RE_PEERINGSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):){0,}" + RE_PEERINGSET_NAME
 
-RE_ASN_FACTOR = "(from|to)\s+(" + RE_ASNEXPR + ")"
+RE_ASNEXPR = "((" + RE_ASSET + "|" + RE_ASN + ")(\s+(OR|AND|EXCEPT)\s+(" + RE_ASSET + "|" + RE_ASN + "))*)"
 
-DEF_ASN_COUNT_MAX = 100
-DEF_ASSET_DEEP_MAX = 5
+RE_PEERING = "(" + RE_PEERINGSET + "|" + RE_ASNEXPR + ")"
+RE_IMPORT_FACTOR = "(from|to)\s+" + RE_PEERING
+
+DEF_SET_COUNT_MAX = 1000
+DEF_SET_DEEP_MAX = 5
 
 
-def uncover_asset(asset_name, asn_count_max=DEF_ASN_COUNT_MAX, asset_deep_max=DEF_ASSET_DEEP_MAX, asset_deep=0):
+def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0):
 
     uncovered = set()
 
@@ -109,29 +113,96 @@ def uncover_asset(asset_name, asn_count_max=DEF_ASN_COUNT_MAX, asset_deep_max=DE
     return asn_list
 
 
-def uncover_peeringset (prngset_name):
-    pass
+def split_peering(peering):
+    peering_list = set()
+
+    peering = re.findall(RE_PEERING, peering, re.IGNORECASE)
+
+    for peer in peering:
+        peering_list.add(peer[0])
+
+    return peering_list
+
+
+def uncover_peeringset(peeringset_name,
+                       peering_count_max=DEF_SET_COUNT_MAX, peering_deep_max=DEF_SET_DEEP_MAX, peering_deep=0):
+    uncovered = set()
+
+    peering_asn_list = set()
+
+
+    if re.fullmatch(RE_PEERINGSET, peeringset_name, re.IGNORECASE):
+        peeringset = get_peeringset_expr(peeringset_name)
+    else:
+        peeringset = (peeringset_name,)
+
+    if peeringset is None:
+        return None
+
+    for peering in peeringset:
+        peer_list = split_peering(peering)
+
+        for peering_asn in peer_list:
+
+            if peering_asn in uncovered:
+                continue
+
+            uncovered.add(peering_asn)
+
+            peer = set()
+
+            if re.fullmatch(RE_PEERINGSET, peering_asn, re.IGNORECASE):
+                if peering_deep_max < peering_deep:
+                    continue
+
+                peeringset_inside = uncover_peeringset(peering_asn,
+                                                       peering_count_max, peering_deep_max,
+                                                       peering_deep + 1)
+
+                if peeringset_inside is None:
+                    return None
+                elif RE_ASSET_ANY in peeringset_inside:
+                    return peeringset_inside
+
+                peer = peeringset_inside
+
+            elif re.fullmatch(RE_ASSET, peering_asn, re.IGNORECASE):
+                peer = uncover_asset(peering_asn)
+            elif re.fullmatch(RE_ASN, peering_asn, re.IGNORECASE):
+                peer.add(peering_asn)
+
+            else:
+                return None
+
+            if peer is None:
+                return None
+            peering_asn_list.update(peer)
+
+    return peering_asn_list
 
 
 REVAR_ASNEXPR = 1
+
+
 def get_peerases(peering_rules):
 
     asn_list = set()
+    peer_list = set()
 
-    adv_peering_list = re.findall(RE_ASN_FACTOR, peering_rules, re.IGNORECASE)
+    adv_peering_list = re.findall(RE_IMPORT_FACTOR, peering_rules, re.IGNORECASE)
 
     for adv_peering in adv_peering_list:
-        peering_asn = adv_peering[REVAR_ASNEXPR]
-        if re.fullmatch(RE_ASN, peering_asn, re.IGNORECASE):
-            asn_list.add(peering_asn)
-        elif re.fullmatch(RE_ASSET, peering_asn, re.IGNORECASE):
-            asn_list.update(uncover_asset(peering_asn))
-        else:
+        peering_rule = adv_peering[REVAR_ASNEXPR]
+        peering = split_peering(peering_rule)
+        if peering in peer_list:
             continue
+        peer_list.update(peering)
+        peer = uncover_peeringset(peering_rule)
+        if peer is None:
+            return None
+        asn_list.update(peer)
 
     return asn_list
 
 
-whois_51032 = get_whois_top("AS51032")
-for export in whois_51032["export"]:
-    print(get_peerases(export))
+print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))

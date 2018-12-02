@@ -112,6 +112,24 @@ def get_asset_members(asset):
     return members
 
 
-def get_peering_expr(prngset):
-    peering = set()
-    pass
+def get_peeringset_expr(peeringset):
+    peerings = set()
+    data = _ripe_search("peering-set", peeringset)
+
+    try:
+        if data is None:
+            peerings = None
+        else:
+
+            records = data["objects"]["object"][0]["attributes"]["attribute"]
+            for record in records:
+                record_type = record["name"]
+                record_value = record["value"]
+
+                if record_type == "peering" or record_type == "mp-peering":
+                    peerings.add(record_value)
+
+    except KeyError or TypeError:
+        peerings = None
+
+    return peerings
