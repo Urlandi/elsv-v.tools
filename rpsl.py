@@ -124,17 +124,17 @@ def split_peering(peering):
     return peering_list
 
 
-def uncover_peeringset(peeringset_name,
-                       peering_count_max=DEF_SET_COUNT_MAX, peering_deep_max=DEF_SET_DEEP_MAX, peering_deep=0):
+def uncover_peering(peering_rule,
+                    peering_count_max=DEF_SET_COUNT_MAX, peering_deep_max=DEF_SET_DEEP_MAX, peering_deep=0):
     uncovered = set()
 
     peering_asn_list = set()
 
 
-    if re.fullmatch(RE_PEERINGSET, peeringset_name, re.IGNORECASE):
-        peeringset = get_peeringset_expr(peeringset_name)
+    if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
+        peeringset = get_peeringset_expr(peering_rule)
     else:
-        peeringset = (peeringset_name,)
+        peeringset = (peering_rule,)
 
     if peeringset is None:
         return None
@@ -155,9 +155,9 @@ def uncover_peeringset(peeringset_name,
                 if peering_deep_max < peering_deep:
                     continue
 
-                peeringset_inside = uncover_peeringset(peering_asn,
-                                                       peering_count_max, peering_deep_max,
-                                                       peering_deep + 1)
+                peeringset_inside = uncover_peering(peering_asn,
+                                                    peering_count_max, peering_deep_max,
+                                                    peering_deep + 1)
 
                 if peeringset_inside is None:
                     return None
@@ -197,7 +197,7 @@ def get_peerases(peering_rules):
         if peering in peer_list:
             continue
         peer_list.update(peering)
-        peer = uncover_peeringset(peering_rule)
+        peer = uncover_peering(peering_rule)
         if peer is None:
             return None
         asn_list.update(peer)
