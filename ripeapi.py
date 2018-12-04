@@ -58,7 +58,7 @@ def get_whois_top(asn):
                 whois_object[record_type].add(record_value)
 
     except KeyError or TypeError:
-        whois_object = None
+        whois_object.clear()
 
     return whois_object
 
@@ -82,7 +82,9 @@ def get_neighbours(asn, power_min=10):
                     neighbours[peer_type].add(peer_asn)
 
     except KeyError or TypeError:
-        neighbours = None
+        neighbours["left"].clear()
+        neighbours["right"].clear()
+        neighbours["uncertain"].clear()
 
     return neighbours
 
@@ -107,7 +109,7 @@ def get_asset_members(asset):
                     members.update(member_list)
 
     except KeyError or TypeError:
-        members = None
+        members.clear()
 
     return members
 
@@ -130,6 +132,6 @@ def get_peeringset_expr(peeringset):
                     peerings.add(record_value)
 
     except KeyError or TypeError:
-        peerings = None
+        peerings.clear()
 
     return peerings

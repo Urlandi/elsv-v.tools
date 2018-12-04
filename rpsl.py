@@ -41,22 +41,24 @@ default: to <peering> [action <action>] [networks <filter>]
 """
 
 import re
+import boolean
 
 from ripeapi import get_asset_members, get_peeringset_expr
 
 
-RE_ASN = "AS[0-9]{1,6}"
-RE_ASSET_NAME = "AS-[A-Z0-9-_]*[A-Z0-9]"
-RE_ASSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):){0,}" + RE_ASSET_NAME
-RE_ASSET_ANY = "AS-ANY"
+RE_ASN = r"AS[0-9]{1,6}"
+RE_ASSET_NAME = r"AS-[A-Z0-9-_]*[A-Z0-9]"
+RE_ASSET = r"((" + RE_ASN + r"|" + RE_ASSET_NAME + r"):)*" + RE_ASSET_NAME
+RE_ASSET_ANY = r"AS-ANY"
 
-RE_PEERINGSET_NAME = "PRNG-[A-Z0-9-_]*[A-Z0-9]"
-RE_PEERINGSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):){0,}" + RE_PEERINGSET_NAME
+RE_PEERINGSET_NAME = r"PRNG-[A-Z0-9-_]*[A-Z0-9]"
+RE_PEERINGSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):)*" + RE_PEERINGSET_NAME
 
-RE_ASNEXPR = "((" + RE_ASSET + "|" + RE_ASN + ")(\s+(OR|AND|EXCEPT)\s+(" + RE_ASSET + "|" + RE_ASN + "))*)"
+RE_ASNEXPR = r"([\s(]*(" + RE_ASSET + "|" + RE_ASN + \
+             r")([\s()]+(OR|AND|EXCEPT)[\s(]+(" + RE_ASSET + r"|" + RE_ASN + r"))*[\s)]*)"
 
-RE_PEERING = "(" + RE_PEERINGSET + "|" + RE_ASNEXPR + ")"
-RE_IMPORT_FACTOR = "(from|to)\s+" + RE_PEERING
+RE_PEERING = r"(" + RE_PEERINGSET + r"|" + RE_ASNEXPR + r")"
+RE_IMPORT_FACTOR = r"(from|to)\s+" + RE_PEERING
 
 DEF_SET_COUNT_MAX = 1000
 DEF_SET_DEEP_MAX = 5
@@ -116,10 +118,17 @@ def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DE
 def split_peering(peering):
     peering_list = set()
 
-    peering = re.findall(RE_PEERING, peering, re.IGNORECASE)
+    asn_logic = re.sub(r"([\s(])EXCEPT([\s)])", r"\1AND NOT\2", peering, flags=re.IGNORECASE)
 
-    for peer in peering:
-        peering_list.add(peer[0])
+    asnexpr = boolean.BooleanAlgebra()
+
+    try:
+        asnexpr_parsed = asnexpr.parse(asn_logic)
+        asnexpr_list = asnexpr.dnf(asnexpr_parsed)
+
+    except boolean.ParseError as e:
+        print(e)
+        peering_list.clear()
 
     return peering_list
 
@@ -129,7 +138,6 @@ def uncover_peering(peering_rule,
     uncovered = set()
 
     peering_asn_list = set()
-
 
     if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
         peeringset = get_peeringset_expr(peering_rule)
@@ -187,16 +195,18 @@ REVAR_ASNEXPR = 1
 def get_peerases(peering_rules):
 
     asn_list = set()
-    peer_list = set()
+    peeringset_list = set()
 
     adv_peering_list = re.findall(RE_IMPORT_FACTOR, peering_rules, re.IGNORECASE)
 
     for adv_peering in adv_peering_list:
         peering_rule = adv_peering[REVAR_ASNEXPR]
-        peering = split_peering(peering_rule)
-        if peering in peer_list:
+
+        if peering_rule in peeringset_list:
             continue
-        peer_list.update(peering)
+        if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
+            peeringset_list.add(peering_rule)
+
         peer = uncover_peering(peering_rule)
         if peer is None:
             return None
@@ -205,4 +215,4 @@ def get_peerases(peering_rules):
     return asn_list
 
 
-print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
+print(get_peerases("from AS13646 EXCEPT (AS-SET)"))
