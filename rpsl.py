@@ -48,11 +48,11 @@ from ripeapi import get_asset_members, get_peeringset_expr
 
 RE_ASN = r"AS[0-9]{1,6}"
 RE_ASSET_NAME = r"AS-[A-Z0-9-_]*[A-Z0-9]"
-RE_ASSET = r"((" + RE_ASN + r"|" + RE_ASSET_NAME + r"):)*" + RE_ASSET_NAME
+RE_ASSET = r"(((" + RE_ASN + r"|" + RE_ASSET_NAME + r"):)*" + RE_ASSET_NAME + r")"
 RE_ASSET_ANY = r"AS-ANY"
 
 RE_PEERINGSET_NAME = r"PRNG-[A-Z0-9-_]*[A-Z0-9]"
-RE_PEERINGSET = "((" + RE_ASN + "|" + RE_ASSET_NAME + "):)*" + RE_PEERINGSET_NAME
+RE_PEERINGSET = r"(((" + RE_ASN + r"|" + RE_ASSET_NAME + r"):)*" + RE_PEERINGSET_NAME + r")"
 
 RE_ASNEXPR = r"([\s(]*(" + RE_ASSET + "|" + RE_ASN + \
              r")([\s()]+(OR|AND|EXCEPT)[\s(]+(" + RE_ASSET + r"|" + RE_ASN + r"))*[\s)]*)"
@@ -120,6 +120,18 @@ def split_peering(peering):
 
     asn_logic = re.sub(r"([\s(])EXCEPT([\s)])", r"\1AND NOT\2", peering, flags=re.IGNORECASE)
 
+    asset_list = re.findall(RE_ASSET, peering, re.IGNORECASE)
+
+    for asset in asset_list:
+        asset_name = asset[0]
+        asn_list = uncover_asset(asset_name)
+        if asn_list is None:
+            return None
+        if len(asn_list) is 0:
+            continue
+        asset_members = "(" + " OR ".join(asn_list) + ")"
+        asn_logic = asn_logic.replace(asset_name, asset_members)
+
     asnexpr = boolean.BooleanAlgebra()
 
     try:
@@ -127,7 +139,6 @@ def split_peering(peering):
         asnexpr_list = asnexpr.dnf(asnexpr_parsed)
 
     except boolean.ParseError as e:
-        print(e)
         peering_list.clear()
 
     return peering_list
@@ -149,6 +160,8 @@ def uncover_peering(peering_rule,
 
     for peering in peeringset:
         peer_list = split_peering(peering)
+        if peer_list is None:
+            return None
 
         for peering_asn in peer_list:
 
@@ -215,4 +228,4 @@ def get_peerases(peering_rules):
     return asn_list
 
 
-print(get_peerases("from AS13646 EXCEPT (AS-SET)"))
+print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD"))
