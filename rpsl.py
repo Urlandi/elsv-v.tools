@@ -55,7 +55,7 @@ RE_PEERINGSET_NAME = r"PRNG-[A-Z0-9-_]*[A-Z0-9]"
 RE_PEERINGSET = r"(((" + RE_ASN + r"|" + RE_ASSET_NAME + r"):)*" + RE_PEERINGSET_NAME + r")"
 
 RE_ASNEXPR = r"([\s(]*(" + RE_ASSET + "|" + RE_ASN + \
-             r")([\s()]+(OR|AND|EXCEPT)[\s(]+(" + RE_ASSET + r"|" + RE_ASN + r"))*[\s)]*)"
+             r")([\s)]+(OR|AND|EXCEPT)[\s(]+(" + RE_ASSET + r"|" + RE_ASN + r"))*[\s)]*)"
 
 RE_PEERING = r"(" + RE_PEERINGSET + r"|" + RE_ASNEXPR + r")"
 RE_IMPORT_FACTOR = r"(from|to)\s+" + RE_PEERING
@@ -83,7 +83,8 @@ def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DE
         uncovered.add(asn)
 
         if re.fullmatch(RE_ASSET_ANY, asn, re.IGNORECASE):
-            continue
+            asn_list = {RE_ASSET_ANY}
+            break
 
         if re.fullmatch(RE_ASSET, asn, re.IGNORECASE):
             if asset_deep_max < asset_deep:
@@ -96,20 +97,18 @@ def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DE
             if asn_inside is None:
                 return None
             elif RE_ASSET_ANY in asn_inside:
-                return asn_inside
+                asn_list = {RE_ASSET_ANY}
+                break
 
             asn_list.update(asn_inside)
 
         elif re.fullmatch(RE_ASN, asn, re.IGNORECASE):
             asn_list.add(asn)
-        else:
-            return None
 
         asn_count = len(asn_list)
 
         if asn_count_max < asn_count:
-            asn_list.clear()
-            asn_list.add(RE_ASSET_ANY)
+            asn_list.add = {RE_ASSET_ANY}
             break
 
     return asn_list
@@ -130,7 +129,7 @@ def split_peering(peering):
         if len(asn_list) is 0:
             continue
         asset_members = "(" + " OR ".join(asn_list) + ")"
-        asn_logic = asn_logic.replace(asset_name, asset_members)
+        asn_logic = re.sub(asset_name+r"([\s)]|$)", asset_members+r"\1", asn_logic, count=1, flags=re.IGNORECASE)
 
     asnexpr = boolean.BooleanAlgebra()
 
@@ -146,58 +145,53 @@ def split_peering(peering):
 
 def uncover_peering(peering_rule,
                     peering_count_max=DEF_SET_COUNT_MAX, peering_deep_max=DEF_SET_DEEP_MAX, peering_deep=0):
-    uncovered = set()
 
+    uncovered = set()
     peering_asn_list = set()
+    peeringset = set()
 
     if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
         peeringset = get_peeringset_expr(peering_rule)
-    else:
-        peeringset = (peering_rule,)
+
+    elif re.fullmatch(RE_ASSET, peering_rule, re.IGNORECASE):
+        peering_asn_list = uncover_asset(peering_rule)
+
+    elif re.fullmatch(RE_ASN, peering_rule, re.IGNORECASE):
+        peering_asn_list.add(peering_rule)
+
+    elif re.fullmatch(RE_ASNEXPR, peering_rule):
+        peering_asn_list = split_peering(peering_rule)
 
     if peeringset is None:
         return None
 
     for peering in peeringset:
-        peer_list = split_peering(peering)
-        if peer_list is None:
-            return None
 
-        for peering_asn in peer_list:
+        peering_expr = re.findall(RE_PEERING, peering, re.IGNORECASE)[0][0]
 
-            if peering_asn in uncovered:
+        if peering_expr in uncovered:
+            continue
+
+        if re.fullmatch(RE_PEERINGSET, peering_expr, re.IGNORECASE):
+            uncovered.add(peering_expr)
+
+            if peering_deep_max < peering_deep:
                 continue
 
-            uncovered.add(peering_asn)
+        peeringset_inside = uncover_peering(peering_expr,
+                                            peering_count_max, peering_deep_max,
+                                            peering_deep + 1)
 
-            peer = set()
+        if peeringset_inside is None:
+            return None
+        elif RE_ASSET_ANY in peeringset_inside:
+            peering_asn_list = {RE_ASSET_ANY}
+            break
 
-            if re.fullmatch(RE_PEERINGSET, peering_asn, re.IGNORECASE):
-                if peering_deep_max < peering_deep:
-                    continue
+        peering_asn_list.update(peeringset_inside)
 
-                peeringset_inside = uncover_peering(peering_asn,
-                                                    peering_count_max, peering_deep_max,
-                                                    peering_deep + 1)
-
-                if peeringset_inside is None:
-                    return None
-                elif RE_ASSET_ANY in peeringset_inside:
-                    return peeringset_inside
-
-                peer = peeringset_inside
-
-            elif re.fullmatch(RE_ASSET, peering_asn, re.IGNORECASE):
-                peer = uncover_asset(peering_asn)
-            elif re.fullmatch(RE_ASN, peering_asn, re.IGNORECASE):
-                peer.add(peering_asn)
-
-            else:
-                return None
-
-            if peer is None:
-                return None
-            peering_asn_list.update(peer)
+    if peering_asn_list is None:
+        return None
 
     return peering_asn_list
 
@@ -213,19 +207,20 @@ def get_peerases(peering_rules):
     adv_peering_list = re.findall(RE_IMPORT_FACTOR, peering_rules, re.IGNORECASE)
 
     for adv_peering in adv_peering_list:
-        peering_rule = adv_peering[REVAR_ASNEXPR]
+        peering_expr = adv_peering[REVAR_ASNEXPR]
 
-        if peering_rule in peeringset_list:
+        if peering_expr in peeringset_list:
             continue
-        if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
-            peeringset_list.add(peering_rule)
+        if re.fullmatch(RE_PEERINGSET, peering_expr, re.IGNORECASE):
+            peeringset_list.add(peering_expr)
 
-        peer = uncover_peering(peering_rule)
-        if peer is None:
+        peer_asns = uncover_peering(peering_expr)
+        if peer_asns is None:
             return None
-        asn_list.update(peer)
+        asn_list.update(peer_asns)
 
     return asn_list
 
 
-print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD"))
+# print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
+print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
