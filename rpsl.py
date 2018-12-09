@@ -42,6 +42,7 @@ default: to <peering> [action <action>] [networks <filter>]
 
 import re
 import boolean
+from functools import reduce, partial
 
 from ripeapi import get_asset_members, get_peeringset_expr
 
@@ -64,54 +65,62 @@ DEF_SET_COUNT_MAX = 1000
 DEF_SET_DEEP_MAX = 5
 
 
-def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0):
+def uncover_asset(asn_list: set, asset_name, asset_uncovered: set=None,
+                  asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0):
 
-    uncovered = set()
-
-    asn_list = set()
-
-    asset = get_asset_members(asset_name)
-
-    if asset is None:
+    if asn_list is None:
         return None
 
-    for asn in asset:
+    asn_count = len(asn_list)
+    if RE_ASSET_ANY in asn_list or asn_count_max < asn_count:
+        return {RE_ASSET_ANY}
 
-        if asn in uncovered:
-            continue
+    uncovered = set()
+    if asset_uncovered is not None:
+        uncovered.update(asset_uncovered)
 
-        uncovered.add(asn)
+    if asset_name in uncovered:
+        return asn_list
 
-        if re.fullmatch(RE_ASSET_ANY, asn, re.IGNORECASE):
-            asn_list = {RE_ASSET_ANY}
-            break
+    _asn_list = set()
 
-        if re.fullmatch(RE_ASSET, asn, re.IGNORECASE):
-            if asset_deep_max <= asset_deep:
-                continue
+    if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE):
 
-            asn_inside = uncover_asset(asn, 
-                                       asn_count_max, asset_deep_max, 
-                                       asset_deep+1)
+        if asset_deep_max < asset_deep:
+            return asn_list
 
-            if asn_inside is None:
-                return None
-            elif RE_ASSET_ANY in asn_inside:
-                asn_list = {RE_ASSET_ANY}
-                break
+        asset_defined = get_asset_members(asset_name)
 
-            asn_list.update(asn_inside)
+        if asset_defined is None:
+            return None
 
-        elif re.fullmatch(RE_ASN, asn, re.IGNORECASE):
-            asn_list.add(asn)
+        if RE_ASSET_ANY in asset_defined:
+            return {RE_ASSET_ANY}
 
-        asn_count = len(asn_list)
+        asset_list_full = set(filter(lambda asset_filter: re.fullmatch(RE_ASSET, asset_filter, re.IGNORECASE),
+                                     asset_defined))
+        asset_list = set(filter(lambda asset_filter: asset_filter not in uncovered,
+                                asset_list_full))
 
-        if asn_count_max < asn_count:
-            asn_list.add = {RE_ASSET_ANY}
-            break
+        func_uncover_asset = partial(uncover_asset,
+                                     asset_uncovered=uncovered,
+                                     asn_count_max=asn_count_max,
+                                     asset_deep_max=asset_deep_max,
+                                     asset_deep=asset_deep+1)
 
-    return asn_list
+        _asn_list = reduce(func_uncover_asset, asset_list, set())
+
+        uncovered.update(asset_name)
+
+        if _asn_list is None:
+            return None
+        elif RE_ASSET_ANY in _asn_list:
+            return {RE_ASSET_ANY}
+
+        _asn_list.update(set(filter(lambda asn_filter: re.fullmatch(RE_ASN, asn_filter, re.IGNORECASE),
+                                    asset_defined)))
+
+    return asn_list.union(_asn_list)
 
 
 def split_peering(peering):
@@ -123,7 +132,7 @@ def split_peering(peering):
 
     for asset in asset_list:
         asset_name = asset[0]
-        asn_list = uncover_asset(asset_name)
+        asn_list = uncover_asset(set(), asset_name)
         if asn_list is None:
             return None
         if len(asn_list) is 0:
@@ -154,7 +163,7 @@ def uncover_peering(peering_rule,
         peeringset = get_peeringset_expr(peering_rule)
 
     elif re.fullmatch(RE_ASSET, peering_rule, re.IGNORECASE):
-        peering_asn_list = uncover_asset(peering_rule)
+        peering_asn_list = uncover_asset(set(), peering_rule)
 
     elif re.fullmatch(RE_ASN, peering_rule, re.IGNORECASE):
         peering_asn_list.add(peering_rule)
@@ -224,4 +233,4 @@ def get_peerases(peering_rules):
 
 # print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
 # print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
-print(uncover_asset("AS-TTK", 10000, 1))
+print(uncover_asset(set(), "AS-TTK", asn_count_max=10000, asset_deep_max=1))
