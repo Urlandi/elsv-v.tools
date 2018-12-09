@@ -87,7 +87,7 @@ def uncover_asset(asset_name, asn_count_max=DEF_SET_COUNT_MAX, asset_deep_max=DE
             break
 
         if re.fullmatch(RE_ASSET, asn, re.IGNORECASE):
-            if asset_deep_max < asset_deep:
+            if asset_deep_max <= asset_deep:
                 continue
 
             asn_inside = uncover_asset(asn, 
@@ -175,20 +175,20 @@ def uncover_peering(peering_rule,
         if re.fullmatch(RE_PEERINGSET, peering_expr, re.IGNORECASE):
             uncovered.add(peering_expr)
 
-            if peering_deep_max < peering_deep:
+            if peering_deep_max <= peering_deep:
                 continue
 
-        peeringset_inside = uncover_peering(peering_expr,
-                                            peering_count_max, peering_deep_max,
-                                            peering_deep + 1)
+            peeringset_inside = uncover_peering(peering_expr,
+                                                peering_count_max, peering_deep_max,
+                                                peering_deep + 1)
 
-        if peeringset_inside is None:
-            return None
-        elif RE_ASSET_ANY in peeringset_inside:
-            peering_asn_list = {RE_ASSET_ANY}
-            break
+            if peeringset_inside is None:
+                return None
+            elif RE_ASSET_ANY in peeringset_inside:
+                peering_asn_list = {RE_ASSET_ANY}
+                break
 
-        peering_asn_list.update(peeringset_inside)
+            peering_asn_list.update(peeringset_inside)
 
     if peering_asn_list is None:
         return None
@@ -223,4 +223,5 @@ def get_peerases(peering_rules):
 
 
 # print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
-print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
+# print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
+print(uncover_asset("AS-TTK", 10000, 1))

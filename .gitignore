@@ -4,3 +4,4 @@ __pycache__/
 *config*
 *.log
 ripe.db.*
+*.profile
