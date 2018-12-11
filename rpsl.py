@@ -86,9 +86,6 @@ def uncover_asset(asn_list: set, asset_name, asset_uncovered: set=None,
 
     if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE):
 
-        if asset_deep_max < asset_deep:
-            return asn_list
-
         asset_defined = get_asset_members(asset_name)
 
         if asset_defined is None:
@@ -97,28 +94,29 @@ def uncover_asset(asn_list: set, asset_name, asset_uncovered: set=None,
         if RE_ASSET_ANY in asset_defined:
             return {RE_ASSET_ANY}
 
-        asset_list_full = set(filter(lambda asset_filter: re.fullmatch(RE_ASSET, asset_filter, re.IGNORECASE),
-                                     asset_defined))
-        asset_list = set(filter(lambda asset_filter: asset_filter not in uncovered,
-                                asset_list_full))
-
-        func_uncover_asset = partial(uncover_asset,
-                                     asset_uncovered=uncovered,
-                                     asn_count_max=asn_count_max,
-                                     asset_deep_max=asset_deep_max,
-                                     asset_deep=asset_deep+1)
-
-        _asn_list = reduce(func_uncover_asset, asset_list, set())
+        _asn_list.update(set(filter(lambda asn_filter: re.fullmatch(RE_ASN, asn_filter, re.IGNORECASE),
+                                    asset_defined)))
 
         uncovered.update(asset_name)
 
-        if _asn_list is None:
-            return None
-        elif RE_ASSET_ANY in _asn_list:
-            return {RE_ASSET_ANY}
+        if asset_deep < asset_deep_max:
 
-        _asn_list.update(set(filter(lambda asn_filter: re.fullmatch(RE_ASN, asn_filter, re.IGNORECASE),
-                                    asset_defined)))
+            asset_list = set(filter(lambda asset_filter: (re.fullmatch(RE_ASSET, asset_filter, re.IGNORECASE)) and
+                                                          (asset_filter not in uncovered),
+                                    asset_defined))
+
+            func_uncover_asset = partial(uncover_asset,
+                                         asset_uncovered=uncovered,
+                                         asn_count_max=asn_count_max,
+                                         asset_deep_max=asset_deep_max,
+                                         asset_deep=asset_deep+1)
+
+            _asn_list = reduce(func_uncover_asset, asset_list, set())
+
+            if _asn_list is None:
+                return None
+            elif RE_ASSET_ANY in _asn_list:
+                return {RE_ASSET_ANY}
 
     return asn_list.union(_asn_list)
 
