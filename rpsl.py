@@ -73,7 +73,7 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0, ass
 
     asn_list = set()
 
-    if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE) and asset_name not in uncovered:
+    if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE):
 
         asset_defined = get_asset_members(asset_name)
 
@@ -85,12 +85,14 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0, ass
         asn_list.update(set(filter(lambda asn_filter: re.fullmatch(RE_ASN, asn_filter, re.IGNORECASE),
                                    asset_defined)))
 
+        uncovered.add(asset_name)
+
         if asset_deep < asset_deep_max:
-            uncovered.add(asset_name)
 
             asset_list = set(filter(lambda asset_filter: re.fullmatch(RE_ASSET, asset_filter, re.IGNORECASE) and
                                     asset_filter not in uncovered,
                                     asset_defined))
+
             uncovered.update(asset_list)
 
             def lambda_uncover_asset(members: set, asset, **kwargs):
