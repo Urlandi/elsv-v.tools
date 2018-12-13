@@ -65,7 +65,8 @@ DEF_SET_COUNT_MAX = 1000
 DEF_SET_DEEP_MAX = 5
 
 
-def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0, asset_uncovered: set=None):
+def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0,
+                  asset_uncovered: set=None, asset_init: set=None):
 
     uncovered = set()
     if asset_uncovered is not None:
@@ -73,9 +74,12 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0, ass
 
     asn_list = set()
 
-    if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE):
+    asset_defined = asset_init
 
-        asset_defined = get_asset_members(asset_name)
+    if re.fullmatch(RE_ASSET, asset_name, re.IGNORECASE) or asset_defined is not None:
+
+        if asset_defined is None:
+            asset_defined = get_asset_members(asset_name)
 
         if asset_defined is None:
             return None
@@ -99,9 +103,9 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0, ass
                 if members is None:
                     return None
                 return members.union(uncover_asset(asset,
-                                                   asset_deep_max=kwargs["asset_deep_max"],
-                                                   asset_deep=kwargs["asset_deep"],
-                                                   asset_uncovered=kwargs["asset_uncovered"]))
+                                                   kwargs["asset_deep_max"],
+                                                   kwargs["asset_deep"],
+                                                   kwargs["asset_uncovered"]))
 
             reduce_uncover_asset = partial(lambda_uncover_asset,
                                            asset_deep_max=asset_deep_max,
@@ -149,27 +153,38 @@ def split_peering(peering):
     return peering_list
 
 
-def uncover_peering(peering_rule,
-                    peering_count_max=DEF_SET_COUNT_MAX, peering_deep_max=DEF_SET_DEEP_MAX, peering_deep=0):
+def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, peeringset_deep=0,
+                       peeringset_uncovered: set=None):
 
     uncovered = set()
-    peering_asn_list = set()
-    peeringset = set()
+    if peeringset_uncovered is not None:
+        uncovered.update(peeringset_uncovered)
 
-    if re.fullmatch(RE_PEERINGSET, peering_rule, re.IGNORECASE):
-        peeringset = get_peeringset_expr(peering_rule)
+    asn_list = set()
 
-    elif re.fullmatch(RE_ASSET, peering_rule, re.IGNORECASE):
-        peering_asn_list = uncover_asset(peering_rule)
+    if re.fullmatch(RE_PEERINGSET, peeringset_name, re.IGNORECASE):
+        peerings_expr = get_peeringset_expr(peeringset_name)
 
-    elif re.fullmatch(RE_ASN, peering_rule, re.IGNORECASE):
-        peering_asn_list.add(peering_rule)
+        if peerings_expr is None:
+            return None
 
-    elif re.fullmatch(RE_ASNEXPR, peering_rule):
-        peering_asn_list = split_peering(peering_rule)
+        peerings_defined = set(map(lambda _peering: re.findall(RE_PEERING, _peering, re.IGNORECASE)[0][0],
+                               peerings_expr))
 
-    if peeringset is None:
-        return None
+        asnexpr_list = set(filter(lambda asnexpr_filter: re.fullmatch(RE_ASNEXPR, asnexpr_filter, re.IGNORECASE),
+                           peerings_defined))
+
+        asset_list = set(filter(lambda asset_filter: re.fullmatch(RE_ASSET, asset_filter, re.IGNORECASE) or
+                                                     re.fullmatch(RE_ASN, asset_filter, re.IGNORECASE),
+                                asnexpr_list))
+
+        asnexpr_list.difference_update(asset_list)
+
+        asset_asn_list = uncover_asset(None, asset_init=asset_list)
+
+        if asset_asn_list is not None:
+            asn_list.update(asset_asn_list)
+
 
     for peering in peeringset:
 

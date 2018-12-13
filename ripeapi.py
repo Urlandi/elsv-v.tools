@@ -5,9 +5,13 @@ RIPE API https://stat.ripe.net/data/ wrapper
 
 import requests
 import json
+from functools import reduce
 
 RIPE_API_URL = "https://stat.ripe.net/data/"
 RIPE_SEARCH_URL = "https://rest.db.ripe.net/ripe/"
+
+_cache_asset = dict()
+_cache_peeringset = dict()
 
 
 def _ripe_get(data_path, data_parameters):
@@ -90,48 +94,66 @@ def get_neighbours(asn, power_min=10):
 
 
 def get_asset_members(asset):
+
     members = set()
 
-    data = _ripe_search("as-set", asset)
+    if asset not in _cache_asset:
 
-    try:
-        if data is None:
-            members = None
-        else:
+        data = _ripe_search("as-set", asset)
 
-            records = data["objects"]["object"][0]["attributes"]["attribute"]
-            for record in records:
-                record_type = record["name"]
-                record_value = record["value"]
+        try:
+            if data is None:
+                members = None
+            else:
+                records = data["objects"]["object"][0]["attributes"]["attribute"]
 
-                if record_type == "members":
-                    member_list = set(record_value.split(','))
-                    members.update(member_list)
+                def find_members(_members, record):
+                    record_type = record["name"]
+                    record_value = record["value"]
 
-    except KeyError or TypeError:
-        members.clear()
+                    if record_type == "members":
+                        return _members.union(set(record_value.split(',')))
+                    else:
+                        return _members
+
+                members.update(reduce(find_members, records, set()))
+                _cache_asset[asset] = members
+
+        except KeyError or TypeError:
+            members.clear()
+    else:
+        members = _cache_asset[asset]
 
     return members
 
 
 def get_peeringset_expr(peeringset):
     peerings = set()
-    data = _ripe_search("peering-set", peeringset)
 
-    try:
-        if data is None:
-            peerings = None
-        else:
+    if peeringset not in _cache_peeringset:
+        data = _ripe_search("peering-set", peeringset)
 
-            records = data["objects"]["object"][0]["attributes"]["attribute"]
-            for record in records:
-                record_type = record["name"]
-                record_value = record["value"]
+        try:
+            if data is None:
+                peerings = None
+            else:
+                records = data["objects"]["object"][0]["attributes"]["attribute"]
 
-                if record_type == "peering" or record_type == "mp-peering":
-                    peerings.add(record_value)
+                def find_peerings(_peerings, record):
+                    record_type = record["name"]
+                    record_value = record["value"]
 
-    except KeyError or TypeError:
-        peerings.clear()
+                    if record_type == "peering" or record_type == "mp-peering":
+                        return _peerings.union({record_value})
+                    else:
+                        return _peerings
+
+                peerings.update(reduce(find_peerings, records, set()))
+                _cache_peeringset[peeringset] = peerings
+
+        except KeyError or TypeError:
+            peerings.clear()
+    else:
+        peerings = _cache_peeringset[peeringset]
 
     return peerings
