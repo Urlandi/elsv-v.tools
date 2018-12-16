@@ -126,32 +126,42 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0,
 
 
 def split_peering(peering):
-    peering_list = set()
+    asn_list = set()
 
     asn_logic = re.sub(r"([\s(])EXCEPT([\s)])", r"\1AND NOT\2", peering, flags=re.IGNORECASE)
 
-    asset_list = re.findall(RE_ASSET, peering, re.IGNORECASE)
+    asset_list = set(map(lambda findall_list: findall_list[0], re.findall(RE_ASSET, peering, re.IGNORECASE)))
 
-    for asset in asset_list:
-        asset_name = asset[0]
-        asn_list = uncover_asset(asset_name)
-        if asn_list is None:
+    def replace_asset(_asn_logic, _asset_name):
+
+        if _asn_logic is None:
             return None
-        if len(asn_list) is 0:
-            continue
-        asset_members = "(" + " OR ".join(asn_list) + ")"
-        asn_logic = re.sub(asset_name+r"([\s)]|$)", asset_members+r"\1", asn_logic, count=1, flags=re.IGNORECASE)
 
-    asnexpr = boolean.BooleanAlgebra()
+        asset_asn_list = uncover_asset(_asset_name)
+
+        if asset_asn_list is None:
+            return None
+        if len(asset_asn_list) is 0:
+            return _asn_logic
+
+        asset_members = "(" + " OR ".join(asset_asn_list) + ")"
+        return re.sub(asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
+
+    asn_logic = map(replace_asset, asset_list, asn_logic)
+
+    if asn_logic is None:
+        return None
+
+    asn_expr = boolean.BooleanAlgebra()
 
     try:
-        asnexpr_parsed = asnexpr.parse(asn_logic)
-        asnexpr_list = asnexpr.dnf(asnexpr_parsed)
+        asnexpr_parsed = asn_expr.parse(asn_logic)
+        asnexpr_list = asn_expr.dnf(asnexpr_parsed)
 
-    except boolean.ParseError as e:
-        peering_list.clear()
+    except boolean.ParseError:
+        asn_list.clear()
 
-    return peering_list
+    return asn_list
 
 
 @in_cache(_cache_uncovered)
