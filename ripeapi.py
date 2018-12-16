@@ -7,11 +7,12 @@ import requests
 import json
 from functools import reduce
 
+from utils import in_cache
+
 RIPE_API_URL = "https://stat.ripe.net/data/"
 RIPE_SEARCH_URL = "https://rest.db.ripe.net/ripe/"
 
-_cache_asset = dict()
-_cache_peeringset = dict()
+_cache_members = dict()
 
 
 def _ripe_get(data_path, data_parameters):
@@ -93,67 +94,60 @@ def get_neighbours(asn, power_min=10):
     return neighbours
 
 
+@in_cache(_cache_members)
 def get_asset_members(asset):
 
     members = set()
 
-    if asset not in _cache_asset:
+    data = _ripe_search("as-set", asset)
 
-        data = _ripe_search("as-set", asset)
+    try:
+        if data is None:
+            members = None
+        else:
+            records = data["objects"]["object"][0]["attributes"]["attribute"]
 
-        try:
-            if data is None:
-                members = None
-            else:
-                records = data["objects"]["object"][0]["attributes"]["attribute"]
+            def find_members(_members, record):
+                record_type = record["name"]
+                record_value = record["value"]
 
-                def find_members(_members, record):
-                    record_type = record["name"]
-                    record_value = record["value"]
+                if record_type == "members":
+                    return _members.union(set(record_value.split(',')))
+                else:
+                    return _members
 
-                    if record_type == "members":
-                        return _members.union(set(record_value.split(',')))
-                    else:
-                        return _members
+            members.update(reduce(find_members, records, set()))
 
-                members.update(reduce(find_members, records, set()))
-                _cache_asset[asset] = members
-
-        except KeyError or TypeError:
-            members.clear()
-    else:
-        members = _cache_asset[asset]
+    except KeyError or TypeError:
+        members.clear()
 
     return members
 
 
+@in_cache(_cache_members)
 def get_peeringset_expr(peeringset):
     peerings = set()
 
-    if peeringset not in _cache_peeringset:
-        data = _ripe_search("peering-set", peeringset)
+    data = _ripe_search("peering-set", peeringset)
 
-        try:
-            if data is None:
-                peerings = None
-            else:
-                records = data["objects"]["object"][0]["attributes"]["attribute"]
+    try:
+        if data is None:
+            peerings = None
+        else:
+            records = data["objects"]["object"][0]["attributes"]["attribute"]
 
-                def find_peerings(_peerings, record):
-                    record_type = record["name"]
-                    record_value = record["value"]
+            def find_peerings(_peerings, record):
+                record_type = record["name"]
+                record_value = record["value"]
 
-                    if record_type == "peering" or record_type == "mp-peering":
-                        return _peerings.union({record_value})
-                    else:
-                        return _peerings
+                if record_type == "peering" or record_type == "mp-peering":
+                    return _peerings.union({record_value})
+                else:
+                    return _peerings
 
-                peerings.update(reduce(find_peerings, records, set()))
-                _cache_peeringset[peeringset] = peerings
+            peerings.update(reduce(find_peerings, records, set()))
 
-        except KeyError or TypeError:
-            peerings.clear()
-    else:
-        peerings = _cache_peeringset[peeringset]
+    except KeyError or TypeError:
+        peerings.clear()
 
     return peerings

@@ -45,6 +45,7 @@ import boolean
 from functools import reduce, partial
 
 from ripeapi import get_asset_members, get_peeringset_expr
+from utils import in_cache
 
 
 RE_ASN = r"AS[0-9]{1,6}"
@@ -64,7 +65,10 @@ RE_IMPORT_FACTOR = r"(from|to)\s+" + RE_PEERING
 DEF_SET_COUNT_MAX = 1000
 DEF_SET_DEEP_MAX = 5
 
+_cache_uncovered = dict()
 
+
+@in_cache(_cache_uncovered)
 def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0,
                   asset_uncovered: set=None, asset_init: set=None):
 
@@ -152,7 +156,7 @@ def split_peering(peering):
 
     return peering_list
 
-
+@in_cache(_cache_uncovered)
 def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, peeringset_deep=0,
                        peeringset_uncovered: set=None):
 
