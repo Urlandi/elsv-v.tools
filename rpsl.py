@@ -132,31 +132,37 @@ def split_peering(peering):
 
     asset_list = set(map(lambda findall_list: findall_list[0], re.findall(RE_ASSET, peering, re.IGNORECASE)))
 
-    def replace_asset(_asn_logic, _asset_name):
+    if len(asset_list) > 0:
+        def replace_asset(_asn_logic, _asset_name):
 
-        if _asn_logic is None:
+            if _asn_logic is None:
+                return None
+
+            asset_asn_list = uncover_asset(_asset_name)
+
+            if asset_asn_list is None:
+                return None
+            if len(asset_asn_list) is 0:
+                return _asn_logic
+
+            asset_members = "(" + " OR ".join(asset_asn_list) + ")"
+            return re.sub(_asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
+
+        asn_logic = str(reduce(replace_asset, asset_list, asn_logic))
+
+        if asn_logic is None:
             return None
-
-        asset_asn_list = uncover_asset(_asset_name)
-
-        if asset_asn_list is None:
-            return None
-        if len(asset_asn_list) is 0:
-            return _asn_logic
-
-        asset_members = "(" + " OR ".join(asset_asn_list) + ")"
-        return re.sub(asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
-
-    asn_logic = map(replace_asset, asset_list, asn_logic)
-
-    if asn_logic is None:
-        return None
 
     asn_expr = boolean.BooleanAlgebra()
 
     try:
         asnexpr_parsed = asn_expr.parse(asn_logic)
-        asnexpr_list = asn_expr.dnf(asnexpr_parsed)
+        asnexpr_list = asn_expr.OR(asn_expr.dnf(asnexpr_parsed), asn_expr.FALSE)
+
+        def reduce_asnexpr(_asn_list, _expr):
+            return _asn_list
+
+        asn_list = reduce(reduce_asnexpr, asnexpr_list.args, asn_list)
 
     except boolean.ParseError:
         asn_list.clear()
@@ -261,4 +267,4 @@ def get_peerases(peering_rules):
 
 # print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
 # print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
-print(uncover_asset("AS-TTK", asset_deep_max=1))
+print(split_peering("NOT (AS1 AND AS2)"))
