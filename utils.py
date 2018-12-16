@@ -8,12 +8,12 @@ def in_cache(cache_store:dict, cached_arg_num=0, cached_arg_name=None):
             else:
                 cached_var = args[cached_arg_num]
 
-            if cached_var in cache_store:
+            if cached_var is not None and cached_var in cache_store:
                 return cache_store[cached_var]
 
             func_data = cached_func(*args, **kwargs)
 
-            if func_data is not None:
+            if func_data is not None and cached_var is not None:
                 cache_store[cached_var] = func_data
 
             return func_data
