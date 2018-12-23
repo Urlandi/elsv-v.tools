@@ -243,9 +243,9 @@ def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, pe
                 return members.union(uncover_peeringset(peeringset, **kwargs))
 
             reduce_uncover_peeringset = partial(lambda_uncover_peeringset,
-                                           peeringset_deep_max=peeringset_deep_max,
-                                           peeringset_deep=peeringset_deep+1,
-                                           peeringset_uncovered=uncovered)
+                                                peeringset_deep_max=peeringset_deep_max,
+                                                peeringset_deep=peeringset_deep+1,
+                                                peeringset_uncovered=uncovered)
 
             peeringset_asn_list = reduce(reduce_uncover_peeringset, peeringset_list, set())
 
@@ -265,26 +265,18 @@ REVAR_ASNEXPR = 1
 def get_peerases(peering_rules):
 
     asn_list = set()
-    peeringset_list = set()
 
     adv_peering_list = re.findall(RE_IMPORT_FACTOR, peering_rules, re.IGNORECASE)
+    import_factor_list = set(map(lambda import_factor: import_factor[REVAR_ASNEXPR], adv_peering_list))
 
-    for adv_peering in adv_peering_list:
-        peering_expr = adv_peering[REVAR_ASNEXPR]
+    peeringset_list = set(filter(lambda import_factor: re.match(RE_PEERINGSET, import_factor, re.IGNORECASE),
+                                 import_factor_list))
 
-        if peering_expr in peeringset_list:
-            continue
-        if re.fullmatch(RE_PEERINGSET, peering_expr, re.IGNORECASE):
-            peeringset_list.add(peering_expr)
-
-        peer_asns = uncover_peeringset(peering_expr)
-        if peer_asns is None:
-            return None
-        asn_list.update(peer_asns)
+    expression_list = peeringset_list.difference(peeringset_list)
 
     return asn_list
 
 
-# print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
-# print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
-print(split_peering("AS-UNICO EXCEPT AS-NEVOD"))
+print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
+print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
+# print(split_peering("AS-UNICO EXCEPT AS-NEVOD"))
