@@ -128,11 +128,16 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0,
 def split_peering(peering):
     asn_list = set()
 
+    if re.fullmatch(RE_ASN, peering, flags=re.IGNORECASE):
+        return peering
+    elif re.fullmatch(RE_ASSET, peering, flags=re.IGNORECASE):
+        return uncover_asset(peering)
+
     asn_logic = re.sub(r"([\s(])EXCEPT([\s)])", r"\1AND NOT\2", peering, flags=re.IGNORECASE)
 
     asset_list = set(map(lambda findall_list: findall_list[0], re.findall(RE_ASSET, peering, re.IGNORECASE)))
 
-    if len(asset_list) > 0:
+    if 0 < len(asset_list):
         def replace_asset(_asn_logic, _asset_name):
 
             if _asn_logic is None:
@@ -142,11 +147,11 @@ def split_peering(peering):
 
             if asset_asn_list is None:
                 return None
-            if len(asset_asn_list) is 0:
-                return _asn_logic
+            if 0 < len(asset_asn_list):
+                asset_members = "(" + " OR ".join(asset_asn_list) + ")"
+                return re.sub(_asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
 
-            asset_members = "(" + " OR ".join(asset_asn_list) + ")"
-            return re.sub(_asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
+            return _asn_logic
 
         asn_logic = str(reduce(replace_asset, asset_list, asn_logic))
 
@@ -157,12 +162,27 @@ def split_peering(peering):
 
     try:
         asnexpr_parsed = asn_expr.parse(asn_logic)
-        asnexpr_list = asn_expr.OR(asn_expr.dnf(asnexpr_parsed), asn_expr.FALSE)
+        asnexpr_list = asn_expr.dnf(asnexpr_parsed)
 
         def reduce_asnexpr(_asn_list, _expr):
-            return _asn_list
+            peer_asn_list = set()
+            present_asn_expr = set(filter(lambda literal: type(literal) is not asn_expr.NOT, _expr.literals))
+            present_asn = set(map(lambda asn: str(asn), present_asn_expr))
+            if 0 < len(present_asn):
+                if RE_ASSET_ANY in present_asn:
+                    return RE_ASSET_ANY
 
-        asn_list = reduce(reduce_asnexpr, asnexpr_list.args, asn_list)
+                peer_asn_list = set(filter(lambda asn: re.match(RE_ASN, asn, re.IGNORECASE), present_asn))
+            return _asn_list.union(peer_asn_list)
+
+        if type(asnexpr_list) is asn_expr.OR:
+            asn_list = reduce(reduce_asnexpr, asnexpr_list.args, asn_list)
+        elif asnexpr_list == asn_expr.FALSE:
+            asn_list.clear()
+        elif asnexpr_list == asn_expr.TRUE:
+            asn_list = {RE_ASSET_ANY}
+        else:
+            asn_list = reduce_asnexpr(asn_list, asnexpr_list)
 
     except boolean.ParseError:
         asn_list.clear()
@@ -267,4 +287,4 @@ def get_peerases(peering_rules):
 
 # print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
 # print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
-print(split_peering("NOT (AS1 AND AS2)"))
+print(split_peering("AS-UNICO EXCEPT AS-NEVOD"))
