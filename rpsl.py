@@ -304,8 +304,3 @@ def get_peerases(peering_rules):
     asn_list = reduce(get_asn, expression_list, asn_list)
 
     return asn_list
-
-
-print(get_peerases("from AS1 OR AS-UNICO EXCEPT AS-NEVOD at 1.1.1.1"))
-print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
-# print(split_peering("AS-UNICO EXCEPT AS-NEVOD"))

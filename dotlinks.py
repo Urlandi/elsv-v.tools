@@ -6,8 +6,12 @@ Generate DOT format list of AS links from RIPE data
 import sys
 import fileinput
 import getopt
-import logging
+import re
+from functools import reduce
+# import logging
 
+import rpsl
+import ripeapi
 
 USAGE_MSG = """
 Make DOT format list of AS links 
@@ -27,10 +31,11 @@ SUCCESS = 0
 ERR_IO = 2
 ERR_GETOPT = 3
 
+
 def main(opt_all=False):
 
     opt_list = "a"
-    lopt_list = ("all")
+    lopt_list = ("all",)
 
     input_flow_name = "-"
 
@@ -46,6 +51,34 @@ def main(opt_all=False):
         if len(args) > 0:
             input_flow_name = args[-1]
 
+        for line in fileinput.input(input_flow_name):
+
+            rline = line.strip()
+            if not re.match(rpsl.RE_ASN, rline, re.IGNORECASE):
+                continue
+
+            whois_asn = ripeapi.get_whois_top(rline)
+
+            if whois_asn is not None:
+
+                def get_whois_asn_list(_whois_asn_list, record_type):
+                    if _whois_asn_list is None:
+                        return None
+                    elif rpsl.RE_ASSET_ANY in _whois_asn_list:
+                        return {rpsl.RE_ASSET_ANY}
+
+                    import_types = ("import", "export", "default", "mp-import", "mp-export", "mp-default",)
+
+                    if record_type in import_types:
+                        pass
+
+                    return _whois_asn_list.union()
+
+                whois_asn_list = set(reduce(get_whois_asn_list, whois_asn, set()))
+                print(whois_asn_list)
+            else:
+                continue
+
     except IOError:
         print ("Input read error in '{}'".format(input_flow_name))
         err_id = ERR_IO
@@ -59,5 +92,7 @@ def main(opt_all=False):
 
     return err_id
 
+
 if __name__ == '__main__':
     exit(main())
+

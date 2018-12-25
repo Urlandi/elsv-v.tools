@@ -12,6 +12,8 @@ from utils import in_cache
 RIPE_API_URL = "https://stat.ripe.net/data/"
 RIPE_SEARCH_URL = "https://rest.db.ripe.net/ripe/"
 
+DEF_POWER_MIN = 10
+
 _cache_members = dict()
 
 
@@ -68,7 +70,7 @@ def get_whois_top(asn):
     return whois_object
 
 
-def get_neighbours(asn, power_min=10):
+def get_neighbours(asn, power_min=DEF_POWER_MIN):
 
     neighbours = {"left": set(), "right": set(), "uncertain": set()}
 
