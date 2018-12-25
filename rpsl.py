@@ -62,7 +62,6 @@ RE_ASNEXPR = r"([\s(]*(" + RE_ASSET + "|" + RE_ASN + \
 RE_PEERING = r"(" + RE_PEERINGSET + r"|" + RE_ASNEXPR + r")"
 RE_IMPORT_FACTOR = r"(from|to)\s+" + RE_PEERING
 
-DEF_SET_COUNT_MAX = 1000
 DEF_SET_DEEP_MAX = 5
 
 _cache_uncovered = dict()
@@ -106,6 +105,8 @@ def uncover_asset(asset_name, asset_deep_max=DEF_SET_DEEP_MAX, asset_deep=0,
             def lambda_uncover_asset(members: set, asset, **kwargs):
                 if members is None:
                     return None
+                elif RE_ASSET_ANY in members:
+                    return {RE_ASSET_ANY}
                 return members.union(uncover_asset(asset, **kwargs))
 
             reduce_uncover_asset = partial(lambda_uncover_asset,
@@ -149,7 +150,8 @@ def split_peering(peering):
                 return None
             if 0 < len(asset_asn_list):
                 asset_members = "(" + " OR ".join(asset_asn_list) + ")"
-                return re.sub(_asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1, flags=re.IGNORECASE)
+                return re.sub(_asset_name + r"([\s)]|$)", asset_members + r"\1", _asn_logic, count=1,
+                              flags=re.IGNORECASE)
 
             return _asn_logic
 
@@ -215,6 +217,8 @@ def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, pe
         def lambda_split_peering(_asnexpr_asn_list: set, asnexpr):
             if _asnexpr_asn_list is None:
                 return None
+            elif RE_ASSET_ANY in _asnexpr_asn_list:
+                return {RE_ASSET_ANY}
             return _asnexpr_asn_list.union(split_peering(asnexpr))
 
         asnexpr_asn_list = reduce(lambda_split_peering, asnexpr_list, set())
@@ -229,8 +233,7 @@ def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, pe
         if peeringset_deep < peeringset_deep_max:
             uncovered.add(peeringset_name)
 
-            peeringset_list = set(filter(lambda peeringset_filter: re.fullmatch(RE_PEERINGSET,
-                                                                                peeringset_filter,
+            peeringset_list = set(filter(lambda peeringset_filter: re.fullmatch(RE_PEERINGSET, peeringset_filter,
                                                                                 re.IGNORECASE) and
                                                                    peeringset_filter not in uncovered,
                                          peerings_defined))
@@ -239,7 +242,10 @@ def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, pe
 
             def lambda_uncover_peeringset(members: set, peeringset, **kwargs):
                 if members is None:
-                    return None
+                    return members
+                elif RE_ASSET_ANY in members:
+                    return {RE_ASSET_ANY}
+
                 return members.union(uncover_peeringset(peeringset, **kwargs))
 
             reduce_uncover_peeringset = partial(lambda_uncover_peeringset,
@@ -259,24 +265,47 @@ def uncover_peeringset(peeringset_name, peeringset_deep_max=DEF_SET_DEEP_MAX, pe
     return asn_list
 
 
-REVAR_ASNEXPR = 1
-
-
 def get_peerases(peering_rules):
 
+    revar_asnexpr = 1
     asn_list = set()
 
     adv_peering_list = re.findall(RE_IMPORT_FACTOR, peering_rules, re.IGNORECASE)
-    import_factor_list = set(map(lambda import_factor: import_factor[REVAR_ASNEXPR], adv_peering_list))
+    import_factor_list = set(map(lambda import_factor: import_factor[revar_asnexpr], adv_peering_list))
 
     peeringset_list = set(filter(lambda import_factor: re.match(RE_PEERINGSET, import_factor, re.IGNORECASE),
                                  import_factor_list))
 
-    expression_list = peeringset_list.difference(peeringset_list)
+    def get_peeringset_asn(_asn_list: set, peeringset):
+        if _asn_list is None:
+            return None
+        elif RE_ASSET_ANY in _asn_list:
+            return {RE_ASSET_ANY}
+
+        return _asn_list.union(uncover_peeringset(peeringset))
+
+    asn_list = reduce(get_peeringset_asn, peeringset_list, asn_list)
+
+    if asn_list is None:
+        return None
+    elif RE_ASSET_ANY in asn_list:
+        return RE_ASSET_ANY
+
+    expression_list = import_factor_list.difference(peeringset_list)
+
+    def get_asn(_asn_list: set, asnexpr):
+        if _asn_list is None:
+            return _asn_list
+        elif RE_ASSET_ANY in _asn_list:
+            return {RE_ASSET_ANY}
+
+        return _asn_list.union(split_peering(asnexpr))
+
+    asn_list = reduce(get_asn, expression_list, asn_list)
 
     return asn_list
 
 
-print(get_peerases("from AS1 OR (AS2 EXCEPT AS-UNICO) OR AS-NEVOD at 1.1.1.1"))
+print(get_peerases("from AS1 OR AS-UNICO EXCEPT AS-NEVOD at 1.1.1.1"))
 print(get_peerases("from AS13646:PRNG-ESPANIX-PRIMARY"))
 # print(split_peering("AS-UNICO EXCEPT AS-NEVOD"))
