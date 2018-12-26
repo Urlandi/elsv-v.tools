@@ -46,6 +46,14 @@ def get_whois_asn_list(import_records):
     return reduce(lambda_get_peerases, import_records, set())
 
 
+def get_dot_links(asn_links):
+    return
+
+
+def print_dot_links(dot_links, opt_all):
+    return
+
+
 def main(opt_all=False):
 
     opt_list = "a"
@@ -116,7 +124,8 @@ def main(opt_all=False):
         if err_id != SUCCESS:
             print ("Break because is fatal error then get links via RIPE API")
         else:
-            print(asn_links)
+            dot_links = get_dot_links(asn_links)
+            print_dot_links(dot_links, opt_all)
 
     except IOError:
         print ("Input read error in '{}'".format(input_flow_name))
