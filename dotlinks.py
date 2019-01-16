@@ -33,6 +33,14 @@ ERR_GETOPT = 3
 ERR_GETASN = 4
 
 
+_rtype_uplinks = "uplinks"
+_rtype_downlinks = "downlinks"
+_rtype_peers = "peers"
+_rtype_import = "import"
+_rtype_export = "export"
+_rtype_mpimport = "mp-import"
+_rtype_mpexport = "mp-export"
+
 def get_whois_asn_list(import_records):
 
     def lambda_get_peerases(asn_list, record):
@@ -47,6 +55,30 @@ def get_whois_asn_list(import_records):
 
 
 def get_dot_links(asn_links):
+
+    asn_list = set(asn_links.keys())
+    asn_doted = set()
+
+    for asn in asn_list:
+        asn_doted.add(asn)
+        peer_asn_list = asn_list.difference(asn_doted)
+
+        for asnpeer in peer_asn_list:
+            is_rir_asn = (asnpeer in asn_links[asn][_rtype_import] and
+                          asnpeer in asn_links[asn][_rtype_export]) or (
+                          asnpeer in asn_links[asn][_rtype_mpimport] and
+                          asnpeer in asn_links[asn][_rtype_mpexport])
+
+            is_rir_asnpeer = (asn in asn_links[asnpeer][_rtype_import] and
+                              asn in asn_links[asnpeer][_rtype_export]) or (
+                              asn in asn_links[asnpeer][_rtype_mpimport] and
+                              asn in asn_links[asnpeer][_rtype_mpexport])
+
+            is_rir = is_rir_asn and is_rir_asnpeer
+
+            is_uplink = asn in asn_links[asnpeer][_rtype_downlinks] and asnpeer in asn_links[asn][_rtype_uplinks]
+            is_downlink = asn in asn_links[asnpeer][_rtype_uplinks] and asnpeer in asn_links[asn][_rtype_downlinks]
+
     return
 
 
@@ -98,9 +130,9 @@ def main(opt_all=False):
                         break
                     else:
                         if record_type == "default":
-                            asn_links[asn]["import"].update(asn_list)
+                            asn_links[asn][_rtype_export].update(asn_list)
                         elif record_type == "mp-default":
-                            asn_links[asn]["mp-import"].update(asn_list)
+                            asn_links[asn][_rtype_mpexport].update(asn_list)
                         else:
                             asn_links[asn][record_type] = set()
                             asn_links[asn][record_type].update(asn_list)
@@ -110,9 +142,9 @@ def main(opt_all=False):
 
                 peers = ripeapi.get_neighbours(asn)
                 if peers is not None:
-                    asn_links[asn]["uplinks"] = peers["left"]
-                    asn_links[asn]["downlinks"] = peers["right"]
-                    asn_links[asn]["peers"] = peers["uncertain"]
+                    asn_links[asn][_rtype_uplinks] = peers["left"]
+                    asn_links[asn][_rtype_downlinks] = peers["right"]
+                    asn_links[asn][_rtype_peers] = peers["uncertain"]
                 else:
                     err_id = ERR_GETASN
                     break
@@ -122,7 +154,7 @@ def main(opt_all=False):
                 break
 
         if err_id != SUCCESS:
-            print ("Break because is fatal error then get links via RIPE API")
+            print ("Break because is fatal error when get links via RIPE API")
         else:
             dot_links = get_dot_links(asn_links)
             print_dot_links(dot_links, opt_all)
