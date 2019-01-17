@@ -64,17 +64,18 @@ def get_dot_links(asn_links):
         peer_asn_list = asn_list.difference(asn_doted)
 
         for asnpeer in peer_asn_list:
-            is_rir_asn = (asnpeer in asn_links[asn][_rtype_import] and
-                          asnpeer in asn_links[asn][_rtype_export]) or (
+            is_rir_mutual = (asnpeer in asn_links[asn][_rtype_import] and
+                          asn in asn_links[asnpeer][_rtype_export] and
                           asnpeer in asn_links[asn][_rtype_mpimport] and
-                          asnpeer in asn_links[asn][_rtype_mpexport])
-
-            is_rir_asnpeer = (asn in asn_links[asnpeer][_rtype_import] and
-                              asn in asn_links[asnpeer][_rtype_export]) or (
-                              asn in asn_links[asnpeer][_rtype_mpimport] and
-                              asn in asn_links[asnpeer][_rtype_mpexport])
-
-            is_rir = is_rir_asn and is_rir_asnpeer
+                          asn in asn_links[asnpeer][_rtype_mpexport]) or\
+                         (asnpeer in asn_links[asn][_rtype_import] and
+                          asn in asn_links[asnpeer][_rtype_export] and
+                          not asnpeer in asn_links[asn][_rtype_mpimport] and
+                          not asn in asn_links[asnpeer][_rtype_mpexport]) or\
+                         (not asnpeer in asn_links[asn][_rtype_import] and
+                          not asn in asn_links[asnpeer][_rtype_export] and
+                          asnpeer in asn_links[asn][_rtype_mpimport] and
+                          asn in asn_links[asnpeer][_rtype_mpexport])
 
             is_uplink = asn in asn_links[asnpeer][_rtype_downlinks] and asnpeer in asn_links[asn][_rtype_uplinks]
             is_downlink = asn in asn_links[asnpeer][_rtype_uplinks] and asnpeer in asn_links[asn][_rtype_downlinks]
