@@ -71,7 +71,7 @@ def get_dot_links(asn_links):
     asn_doted = set()
 
     dot_links = {_ltype_uplinksrir: set(), _ltype_downlinksrir: set(), _ltype_peersrir: set(),
-                 _ltype_uplinks: set(),_ltype_downlinks: set(), _ltype_peers:set (),
+                 _ltype_uplinks: set(), _ltype_downlinks: set(), _ltype_peers: set(),
                  _ltype_uplinksext: set(), _ltype_downlinksext: set(), _ltype_peersext: set()}
 
     for asn in asn_list:
@@ -94,21 +94,21 @@ def get_dot_links(asn_links):
                 continue
 
             is_rir_mutual = (asnpeer in asn_links[asn][_rtype_import] and
-                          asn in asn_links[asnpeer][_rtype_export] and
-                          asnpeer in asn_links[asn][_rtype_mpimport] and
-                          asn in asn_links[asnpeer][_rtype_mpexport]) or \
-                         (asnpeer in asn_links[asn][_rtype_import] and
-                          asn in asn_links[asnpeer][_rtype_export] and
-                          not asnpeer in asn_links[asn][_rtype_mpimport] and
-                          not asn in asn_links[asnpeer][_rtype_mpexport]) or \
-                         (not asnpeer in asn_links[asn][_rtype_import] and
-                          not asn in asn_links[asnpeer][_rtype_export] and
-                          asnpeer in asn_links[asn][_rtype_mpimport] and
-                          asn in asn_links[asnpeer][_rtype_mpexport])
+                             asn in asn_links[asnpeer][_rtype_export] and
+                             asnpeer in asn_links[asn][_rtype_mpimport] and
+                             asn in asn_links[asnpeer][_rtype_mpexport]) or \
+                            (asnpeer in asn_links[asn][_rtype_import] and
+                             asn in asn_links[asnpeer][_rtype_export] and
+                             asnpeer not in asn_links[asn][_rtype_mpimport] and
+                             asn not in asn_links[asnpeer][_rtype_mpexport]) or \
+                            (asnpeer not in asn_links[asn][_rtype_import] and
+                             asn not in asn_links[asnpeer][_rtype_export] and
+                             asnpeer in asn_links[asn][_rtype_mpimport] and
+                             asn in asn_links[asnpeer][_rtype_mpexport])
 
             is_uplink = asn in asn_links[asnpeer][_rtype_downlinks] and asnpeer in asn_links[asn][_rtype_uplinks]
             is_downlink = asn in asn_links[asnpeer][_rtype_uplinks] and asnpeer in asn_links[asn][_rtype_downlinks]
-            is_peer = asn in asn_links[asnpeer][_rtype_peers] and asnpeer in asn_links[asn][_rtype_peers]
+            # is_peer = asn in asn_links[asnpeer][_rtype_peers] and asnpeer in asn_links[asn][_rtype_peers]
 
             if is_uplink and is_rir_mutual:
                 dot_links[_ltype_uplinksrir].add((asn, asnpeer,))
@@ -202,17 +202,17 @@ def main(opt_all=False):
                 break
 
         if err_id != SUCCESS:
-            print ("Break because is fatal error when get links via RIPE API")
+            print("Break because is fatal error when get links via RIPE API")
         else:
             dot_links = get_dot_links(asn_links)
             print_dot_links(dot_links, opt_all)
 
     except IOError:
-        print ("Input read error in '{}'".format(input_flow_name))
+        print("Input read error in '{}'".format(input_flow_name))
         err_id = ERR_IO
 
     except getopt.GetoptError:
-        print (USAGE_MSG)
+        print(USAGE_MSG)
         err_id = ERR_GETOPT
 
     finally:
@@ -223,4 +223,3 @@ def main(opt_all=False):
 
 if __name__ == '__main__':
     exit(main())
-
