@@ -33,14 +33,6 @@ ERR_GETOPT = 3
 ERR_GETASN = 4
 
 
-_rtype_uplinks = "uplinks"
-_rtype_downlinks = "downlinks"
-_rtype_peers = "peers"
-_rtype_import = "import"
-_rtype_export = "export"
-_rtype_mpimport = "mp-import"
-_rtype_mpexport = "mp-export"
-
 def get_whois_asn_list(import_records):
 
     def lambda_get_peerases(asn_list, record):
@@ -54,24 +46,58 @@ def get_whois_asn_list(import_records):
     return reduce(lambda_get_peerases, import_records, set())
 
 
+_rtype_uplinks = "uplinks"
+_rtype_downlinks = "downlinks"
+_rtype_peers = "peers"
+_rtype_import = "import"
+_rtype_export = "export"
+_rtype_mpimport = "mp-import"
+_rtype_mpexport = "mp-export"
+
+_ltype_uplinksrir = "uplinks_rir"
+_ltype_downlinksrir = "downlins_rir"
+_ltype_peersrir = "peers_rir"
+_ltype_uplinks = "uplinks"
+_ltype_downlinks = "downlinks"
+_ltype_peers = "peers"
+_ltype_uplinksext = "uplinks_ext"
+_ltype_downlinksext = "downlinks_ext"
+_ltype_peersext = "peers_ext"
+
+
 def get_dot_links(asn_links):
 
     asn_list = set(asn_links.keys())
     asn_doted = set()
+
+    dot_links = {_ltype_uplinksrir: set(), _ltype_downlinksrir: set(), _ltype_peersrir: set(),
+                 _ltype_uplinks: set(),_ltype_downlinks: set(), _ltype_peers:set (),
+                 _ltype_uplinksext: set(), _ltype_downlinksext: set(), _ltype_peersext: set()}
 
     for asn in asn_list:
         asn_doted.add(asn)
         peer_asn_list = asn_list.difference(asn_doted)
 
         for asnpeer in peer_asn_list:
+            is_peering = asnpeer in (asn_links[asn][_rtype_import] | asn_links[asn][_rtype_export] |
+                                     asn_links[asn][_rtype_mpimport] | asn_links[asn][_rtype_mpexport] |
+                                     asn_links[asn][_rtype_downlinks] | asn_links[asn][_rtype_uplinks] |
+                                     asn_links[asn][_rtype_peers]) or \
+                         asn in (asn_links[asnpeer][_rtype_import] | asn_links[asnpeer][_rtype_export] |
+                                 asn_links[asnpeer][_rtype_mpimport] | asn_links[asnpeer][_rtype_mpexport] |
+                                 asn_links[asnpeer][_rtype_downlinks] | asn_links[asnpeer][_rtype_uplinks] |
+                                 asn_links[asnpeer][_rtype_peers])
+            if not is_peering:
+                continue
+
             is_rir_mutual = (asnpeer in asn_links[asn][_rtype_import] and
                           asn in asn_links[asnpeer][_rtype_export] and
                           asnpeer in asn_links[asn][_rtype_mpimport] and
-                          asn in asn_links[asnpeer][_rtype_mpexport]) or\
+                          asn in asn_links[asnpeer][_rtype_mpexport]) or \
                          (asnpeer in asn_links[asn][_rtype_import] and
                           asn in asn_links[asnpeer][_rtype_export] and
                           not asnpeer in asn_links[asn][_rtype_mpimport] and
-                          not asn in asn_links[asnpeer][_rtype_mpexport]) or\
+                          not asn in asn_links[asnpeer][_rtype_mpexport]) or \
                          (not asnpeer in asn_links[asn][_rtype_import] and
                           not asn in asn_links[asnpeer][_rtype_export] and
                           asnpeer in asn_links[asn][_rtype_mpimport] and
@@ -79,8 +105,9 @@ def get_dot_links(asn_links):
 
             is_uplink = asn in asn_links[asnpeer][_rtype_downlinks] and asnpeer in asn_links[asn][_rtype_uplinks]
             is_downlink = asn in asn_links[asnpeer][_rtype_uplinks] and asnpeer in asn_links[asn][_rtype_downlinks]
+            is_peer = asn in asn_links[asnpeer][_rtype_peers] and asnpeer in asn_links[asn][_rtype_peers]
 
-    return
+    return dot_links
 
 
 def print_dot_links(dot_links, opt_all):
@@ -143,9 +170,13 @@ def main(opt_all=False):
 
                 peers = ripeapi.get_neighbours(asn)
                 if peers is not None:
-                    asn_links[asn][_rtype_uplinks] = peers["left"]
-                    asn_links[asn][_rtype_downlinks] = peers["right"]
-                    asn_links[asn][_rtype_peers] = peers["uncertain"]
+
+                    def lambda_as_prefix(asnum):
+                        return "AS{}".format(asnum)
+
+                    asn_links[asn][_rtype_uplinks] = set(map(lambda_as_prefix, peers["left"]))
+                    asn_links[asn][_rtype_downlinks] = set(map(lambda_as_prefix, peers["right"]))
+                    asn_links[asn][_rtype_peers] = set(map(lambda_as_prefix, peers["uncertain"]))
                 else:
                     err_id = ERR_GETASN
                     break
